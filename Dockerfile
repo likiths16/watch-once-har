@@ -20,6 +20,8 @@ ENV DB_PATH=/data/watch-once-har.db
 ENV DEMO_PORT=8089
 
 EXPOSE 4000
-VOLUME ["/data"]
+# No VOLUME directive here: Railway (and some other PaaS builders) reject Dockerfiles that
+# declare one, wanting volumes attached through their own UI/config instead. /data still
+# works as a mount point without it — this only skips docker's own anonymous-volume behavior.
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

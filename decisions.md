@@ -196,6 +196,17 @@ duplicate seed data). The two sample HARs also had to be duplicated into
 point `curl -F file=@samples/...` at directly per the README, but only classpath resources get
 packaged into the runnable jar.
 
+## A real deploy failure found on Railway
+
+The first Railway deploy attempt failed at the build step: `dockerfile invalid: docker VOLUME
+at Line 23 is not supported, use Railway Volumes`. Railway's builder rejects a Dockerfile that
+declares its own `VOLUME` instruction outright, wanting persistent storage attached through its
+own UI/config instead. Fixed by dropping the `VOLUME ["/data"]` line entirely — `/data` still
+works fine as a mount point for a platform-attached volume without the Dockerfile declaring it
+itself; the instruction was doing nothing Railway's own volume attachment doesn't already cover,
+and every other host (Render, Fly, plain `docker run -v`) is equally happy with a plain `WORKDIR`
++ writable path and no `VOLUME` line.
+
 ## HAR filtering heuristic
 
 A HAR captures every network request a page made, including static assets and full document
