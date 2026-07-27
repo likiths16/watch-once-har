@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Watch Once (HAR edition)</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --border: #2a2f3a; --text: #e6e9ef; --muted: #9aa3b2;
+    --accent: #5b9cff; --good: #3fbf72; --bad: #e5534b; --warn: #d8a13a; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 24px 32px 8px; }
+  header h1 { margin: 0 0 4px; font-size: 22px; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+  main { max-width: 980px; margin: 0 auto; padding: 8px 32px 64px; display: flex; flex-direction: column; gap: 24px; }
+  section { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; }
+  section h2 { margin: 0 0 4px; font-size: 16px; }
+  section .sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; margin-bottom: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 180px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  input[type=text], input[type=number], select {
+    background: #0d0f14; border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 14px;
+  }
+  input[type=file] { color: var(--muted); font-size: 13px; }
+  button {
+    background: var(--accent); color: #06111f; border: none; padding: 9px 16px; border-radius: 6px;
+    font-weight: 600; font-size: 13px; cursor: pointer;
+  }
+  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  code, pre { font-family: var(--mono); }
+  pre { background: #0d0f14; border: 1px solid var(--border); border-radius: 6px; padding: 10px; overflow: auto; font-size: 12px; max-height: 260px; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .pill.ok { background: rgba(63,191,114,0.15); color: var(--good); }
+  .pill.bad { background: rgba(229,83,75,0.15); color: var(--bad); }
+  .pill.warn { background: rgba(216,161,58,0.15); color: var(--warn); }
+  .muted { color: var(--muted); }
+  .status { font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .status.error { color: var(--bad); }
+  .status.info { color: var(--muted); }
+  ul.compact { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+  ul.compact li { margin-bottom: 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Watch Once <span class="muted">— HAR edition</span></h1>
+  <p>Upload two HAR captures of the same task done with different data, generalize the diff into a workflow, then run it with new data. This page is a thin convenience over the REST API — see the README for the equivalent curl commands.</p>
+</header>
+<main>
+
+  <section id="captures-section">
+    <h2>1. Captures</h2>
+    <p class="sub">Upload two HAR files of the same task (DevTools → Network → Save all as HAR). Two sample files are in <code>samples/</code> if you don't have your own yet.</p>
+    <div class="row">
+      <div class="field"><label>Capture name</label><input type="text" id="captureName" placeholder="e.g. demo-1"></div>
+      <div class="field"><label>HAR file</label><input type="file" id="captureFile" accept=".har,application/json"></div>
+      <div><button id="uploadBtn">Upload</button></div>
+    </div>
+    <div class="status" id="uploadStatus"></div>
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>API calls</th><th>Uploaded</th></tr></thead>
+      <tbody id="capturesTable"></tbody>
+    </table>
+  </section>
+
+  <section id="generalize-section">
+    <h2>2. Generalize</h2>
+    <p class="sub">Pick the two captures of the same task done with different data, and a name for the resulting workflow.</p>
+    <div class="row">
+      <div class="field"><label>Capture 1</label><select id="capture1"></select></div>
+      <div class="field"><label>Capture 2</label><select id="capture2"></select></div>
+      <div class="field"><label>Workflow name</label><input type="text" id="workflowName" placeholder="e.g. add-vendor"></div>
+      <div><button id="generalizeBtn">Generalize</button></div>
+    </div>
+    <div class="status" id="generalizeStatus"></div>
+    <div id="generalizeResult"></div>
+  </section>
+
+  <section id="run-section">
+    <h2>3. Run</h2>
+    <p class="sub">Pick a workflow, fill in its variables, and fire the real HTTP sequence.</p>
+    <div class="row">
+      <div class="field"><label>Workflow</label><select id="workflowSelect"></select></div>
+      <div><button class="secondary" id="refreshWorkflowsBtn">Refresh</button></div>
+    </div>
+    <div id="variableForm"></div>
+    <div class="row"><div><button id="runBtn" disabled>Run</button></div></div>
+
+    <div class="grid2" style="margin-top:16px;">
+      <div>
+        <label style="font-size:12px;color:var(--muted);">Or run a whole CSV of rows (header row = variable names)</label>
+        <div class="row" style="margin-top:6px;">
+          <input type="file" id="csvFile" accept=".csv,text/csv">
+          <button class="secondary" id="batchRunBtn" disabled>Run batch</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="status" id="runStatus"></div>
+    <div id="runResult"></div>
+  </section>
+
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let captures = [];
+let workflows = [];
+let currentWorkflow = null;
+
+function setStatus(el, msg, cls) {
+  el.textContent = msg || '';
+  el.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+async function api(path, options) {
+  const res = await fetch(path, options);
+  const text = await res.text();
+  let body;
+  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  if (!res.ok) {
+    const msg = (body && body.error) ? body.error : (typeof body === 'string' ? body : res.statusText);
+    throw new Error(msg);
+  }
+  return body;
+}
+
+// ---------------- captures ----------------
+
+async function loadCaptures() {
+  captures = await api('/captures');
+  const tbody = $('capturesTable');
+  tbody.innerHTML = captures.map(c =>
+    `<tr><td>${c.id}</td><td>${escapeHtml(c.name)}</td><td>${c.requestCount}</td><td class="muted">${escapeHtml(c.createdAt || '')}</td></tr>`
+  ).join('');
+
+  const opts = captures.map(c => `<option value="${c.id}">#${c.id} ${escapeHtml(c.name)} (${c.requestCount} calls)</option>`).join('');
+  $('capture1').innerHTML = opts;
+  $('capture2').innerHTML = opts;
+  if (captures.length > 1) $('capture2').selectedIndex = 1;
+}
+
+$('uploadBtn').onclick = async () => {
+  const name = $('captureName').value.trim();
+  const fileInput = $('captureFile');
+  if (!name) return setStatus($('uploadStatus'), 'Give the capture a name first.', 'error');
+  if (!fileInput.files.length) return setStatus($('uploadStatus'), 'Choose a HAR file first.', 'error');
+
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('file', fileInput.files[0]);
+  setStatus($('uploadStatus'), 'Uploading…', 'info');
+  try {
+    const summary = await api('/captures', { method: 'POST', body: fd });
+    setStatus($('uploadStatus'), `Uploaded "${summary.name}" — ${summary.requestCount} API calls found.`, '');
+    $('captureName').value = '';
+    fileInput.value = '';
+    await loadCaptures();
+  } catch (e) {
+    setStatus($('uploadStatus'), 'Error: ' + e.message, 'error');
+  }
+};
+
+// ---------------- generalize ----------------
+
+$('generalizeBtn').onclick = async () => {
+  const captureId1 = Number($('capture1').value);
+  const captureId2 = Number($('capture2').value);
+  const name = $('workflowName').value.trim() || 'workflow';
+  if (!captureId1 || !captureId2) return setStatus($('generalizeStatus'), 'Upload at least two captures first.', 'error');
+
+  setStatus($('generalizeStatus'), 'Generalizing…', 'info');
+  $('generalizeResult').innerHTML = '';
+  try {
+    const wf = await api('/workflows/generalize', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ captureId1, captureId2, name })
+    });
+    setStatus($('generalizeStatus'), `Workflow #${wf.id} "${wf.name}" created — ${wf.workflow.steps.length} steps.`, '');
+    $('generalizeResult').innerHTML = renderWorkflowDetail(wf.workflow);
+    await loadWorkflows();
+    selectWorkflow(wf.id);
+  } catch (e) {
+    setStatus($('generalizeStatus'), 'Error: ' + e.message, 'error');
+  }
+};
+
+function renderWorkflowDetail(wf) {
+  const vars = wf.variables.length
+    ? '<ul class="compact">' + wf.variables.map(v =>
+        `<li><code>${escapeHtml(v.name)}</code> <span class="muted">— e.g. "${escapeHtml(v.exampleValue1)}" / "${escapeHtml(v.exampleValue2)}"</span></li>`
+      ).join('') + '</ul>'
+    : '<p class="muted">None detected.</p>';
+
+  const deps = wf.dependencies.length
+    ? '<ul class="compact">' + wf.dependencies.map(d =>
+        `<li>step ${d.stepIndex} <code>${escapeHtml(d.location)}</code> ← step ${d.sourceStepIndex}'s response at <code>${escapeHtml(d.sourceJsonPath)}</code></li>`
+      ).join('') + '</ul>'
+    : '<p class="muted">None detected.</p>';
+
+  const warnings = wf.warnings.length
+    ? '<ul class="compact">' + wf.warnings.map(w =>
+        `<li><span class="pill warn">step ${w.stepIndex}</span> <code>${escapeHtml(w.location)}</code> — ${escapeHtml(w.message)}</li>`
+      ).join('') + '</ul>'
+    : '<p class="muted">None.</p>';
+
+  const steps = wf.steps.map(s => `<li><code>${s.method}</code> ${describeTemplated(s.path)}</li>`).join('');
+
+  return `
+    <div class="grid2">
+      <div><b>Variables (user-supplied)</b>${vars}</div>
+      <div><b>Dependencies (chained from earlier responses)</b>${deps}</div>
+    </div>
+    <div style="margin-top:12px;"><b>Warnings</b>${warnings}</div>
+    <div style="margin-top:12px;"><b>Steps</b><ul class="compact">${steps}</ul></div>
+  `;
+}
+
+function describeTemplated(tv) {
+  return tv.parts.map(p => {
+    if (p.kind === 'literal') return escapeHtml(p.text);
+    if (p.kind === 'variable') return `<code>{${escapeHtml(p.name)}}</code>`;
+    if (p.kind === 'responseRef') return `<code>{step${p.sourceStepIndex}.${escapeHtml(p.jsonPath)}}</code>`;
+    return '';
+  }).join('');
+}
+
+// ---------------- run ----------------
+
+async function loadWorkflows() {
+  workflows = await api('/workflows');
+  $('workflowSelect').innerHTML = workflows.map(w =>
+    `<option value="${w.id}">#${w.id} ${escapeHtml(w.name)} (${w.variableCount} vars, ${w.dependencyCount} deps)</option>`
+  ).join('');
+  if (workflows.length) await selectWorkflow(Number($('workflowSelect').value));
+}
+
+$('refreshWorkflowsBtn').onclick = loadWorkflows;
+$('workflowSelect').onchange = (e) => selectWorkflow(Number(e.target.value));
+
+async function selectWorkflow(id) {
+  $('workflowSelect').value = String(id);
+  const detail = await api('/workflows/' + id);
+  currentWorkflow = detail;
+  const vars = detail.workflow.variables;
+  $('variableForm').innerHTML = vars.length
+    ? vars.map(v => `
+        <div class="field" style="margin-bottom:8px;">
+          <label>${escapeHtml(v.name)} <span class="muted">(e.g. "${escapeHtml(v.exampleValue1)}" / "${escapeHtml(v.exampleValue2)}")</span></label>
+          <input type="text" data-var="${escapeHtml(v.name)}" placeholder="${escapeHtml(v.exampleValue1)}">
+        </div>`).join('')
+    : '<p class="muted">This workflow has no variables — every step is literal or chained.</p>';
+  $('runBtn').disabled = false;
+  $('batchRunBtn').disabled = false;
+}
+
+$('runBtn').onclick = async () => {
+  if (!currentWorkflow) return;
+  const values = {};
+  document.querySelectorAll('#variableForm input[data-var]').forEach(i => values[i.dataset.var] = i.value);
+
+  setStatus($('runStatus'), 'Running…', 'info');
+  $('runResult').innerHTML = '';
+  try {
+    const resp = await api('/runs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workflowId: currentWorkflow.id, values })
+    });
+    setStatus($('runStatus'), '', '');
+    $('runResult').innerHTML = renderRunResult(resp.result);
+  } catch (e) {
+    setStatus($('runStatus'), 'Error: ' + e.message, 'error');
+  }
+};
+
+$('batchRunBtn').onclick = async () => {
+  if (!currentWorkflow) return;
+  const fileInput = $('csvFile');
+  if (!fileInput.files.length) return setStatus($('runStatus'), 'Choose a CSV file first.', 'error');
+
+  const fd = new FormData();
+  fd.append('workflowId', String(currentWorkflow.id));
+  fd.append('file', fileInput.files[0]);
+
+  setStatus($('runStatus'), 'Running batch…', 'info');
+  $('runResult').innerHTML = '';
+  try {
+    const resp = await api('/runs/batch', { method: 'POST', body: fd });
+    setStatus($('runStatus'), `${resp.successCount} / ${resp.rowCount} rows succeeded.`, '');
+    $('runResult').innerHTML = resp.runs.map((r, i) =>
+      `<h3 style="font-size:13px;margin:16px 0 4px;">Row ${i + 1} — run #${r.id}</h3>${renderRunResult(r.result)}`
+    ).join('');
+  } catch (e) {
+    setStatus($('runStatus'), 'Error: ' + e.message, 'error');
+  }
+};
+
+function renderRunResult(result) {
+  const pill = result.success ? '<span class="pill ok">success</span>' : '<span class="pill bad">failed</span>';
+  const rows = result.steps.map(s => {
+    const stepPill = s.success ? '<span class="pill ok">ok</span>' : '<span class="pill bad">failed</span>';
+    return `<tr>
+      <td>${s.stepIndex}</td><td><code>${s.method}</code></td>
+      <td><code>${escapeHtml(s.url || '')}</code></td>
+      <td>${s.responseStatus >= 0 ? s.responseStatus : '—'}</td>
+      <td>${stepPill}</td>
+      <td class="muted">${escapeHtml(s.error || '')}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <div style="margin:8px 0;">${pill} <span class="muted">${result.workflowName}</span></div>
+    <table>
+      <thead><tr><th>#</th><th>Method</th><th>URL</th><th>Status</th><th></th><th>Error</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+loadCaptures().then(loadWorkflows).catch(e => setStatus($('uploadStatus'), 'Error loading data: ' + e.message, 'error'));
+</script>
+</body>
+</html>
