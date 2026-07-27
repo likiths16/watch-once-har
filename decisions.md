@@ -183,6 +183,19 @@ than to a single dependency edge case) and was consciously left for a v2.
   at generation time, so they have to point at a port something will actually be listening on
   later.
 
+## Seeding the deployed instance
+
+The brief asks for the deployed instance to not be an empty page. `SampleSeeder` runs once at
+boot and, only if the `captures` table is empty (a fresh database), uploads and generalizes
+the two committed sample HARs automatically — so `GET /workflows` and the dashboard already
+show a real, runnable workflow the first time anyone opens the deployed URL, with no manual
+step. It's best-effort (a failure just logs a warning, never blocks startup) and idempotent
+across restarts (it only acts on a genuinely empty database, so redeploys don't pile up
+duplicate seed data). The two sample HARs also had to be duplicated into
+`src/main/resources/samples/` for this — the repo-root `samples/` directory is for a human to
+point `curl -F file=@samples/...` at directly per the README, but only classpath resources get
+packaged into the runnable jar.
+
 ## HAR filtering heuristic
 
 A HAR captures every network request a page made, including static assets and full document
