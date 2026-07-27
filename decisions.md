@@ -207,6 +207,15 @@ itself; the instruction was doing nothing Railway's own volume attachment doesn'
 and every other host (Render, Fly, plain `docker run -v`) is equally happy with a plain `WORKDIR`
 + writable path and no `VOLUME` line.
 
+A second real failure followed on the very next deploy: `path to '/data/watch-once-har.db':
+'/data' does not exist` — a platform volume has to be explicitly attached through Railway's
+own UI before `/data` exists in the container at all, and that's a manual step separate from
+the Dockerfile/push. Rather than make first boot depend on a human clicking through that
+correctly, `DB_PATH` now defaults to `/app/data/watch-once-har.db`, and the Dockerfile creates
+`/app/data` at build time (`RUN mkdir -p /app/data`) — so the app runs immediately with zero
+manual volume step on any host. A platform volume can still be attached later, mounted at that
+same `/app/data` path, for the data to survive restarts/redeploys; nothing else changes.
+
 ## HAR filtering heuristic
 
 A HAR captures every network request a page made, including static assets and full document

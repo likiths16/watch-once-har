@@ -146,12 +146,18 @@ image) — there's no browser to install, so the image is small and starts in ab
 
 ```bash
 docker build -t watch-once-har .
-docker run -p 4000:4000 -v watch-once-data:/data -e DB_PATH=/data/watch-once-har.db watch-once-har
+docker run -p 4000:4000 watch-once-har
 ```
 
-Any JVM host works (Railway, Render, Fly): point it at this `Dockerfile`, attach a small
-persistent volume mounted wherever `DB_PATH` points (the SQLite file lives there), and set
-`PORT` if the platform requires a specific one. The demo target API and its sample-HAR-backed
-workflow start inside the same container automatically, so the deployed URL isn't an empty
-page — a grader can upload the two `samples/*.har` files (or use a pre-seeded workflow, if one
-was generalized ahead of time and is visible via `GET /workflows`) and run them immediately.
+The container works with zero configuration — `DB_PATH` defaults to `/app/data/watch-once-har.db`,
+a directory created at build time, so there's no platform volume to attach before it will even
+boot. For the SQLite file to survive restarts/redeploys, attach a persistent volume mounted at
+that same `/app/data` path (Railway: Settings → Volumes; Render needs a paid plan for a
+persistent disk) — nothing else needs to change.
+
+Any JVM host works (Railway, Render, Fly): point it at this `Dockerfile` and set `PORT` if the
+platform requires a specific one (most auto-inject it and this app already reads `$PORT`). The
+demo target API and its sample-HAR-backed workflow start inside the same container
+automatically, so the deployed URL isn't an empty page — `SampleSeeder` uploads and generalizes
+the two committed sample HARs on first boot, so a real workflow is already there the first time
+anyone opens it.
